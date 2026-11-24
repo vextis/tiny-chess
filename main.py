@@ -4,7 +4,7 @@ V=[0,100,320,330,500,900,0];PR=[0,50,19,12,10,0,5,0]
 B=[0]*128;S=0;C=0;E=-1;K=[0,0]
 N=[-16,16,-1,1];D=[-15,15,-17,17];A=N+D;W=[-33,-31,-18,-14,14,18,31,33]
 Q=[i for i in range(128)if not i&0x88];CR={112:2,119:1,0:8,7:4};DS={2:W,3:D,4:N,5:A,6:A}
-ND=0;LIM=30000;Ab=Exception;sqo=lambda x:(8-int(x[1]))*16+ord(x[0])-97
+ND=0;LIM=50000;Ab=Exception;sqo=lambda x:(8-int(x[1]))*16+ord(x[0])-97
 def at(s,y):
  o=y<<3
  for d in (15,17):
@@ -12,7 +12,7 @@ def at(s,y):
   if not t&0x88 and B[t]==1|o:return 1
  for d in W+A:
   t=s+d
-  if not t&0x88 and B[t]==(2 if d in W else 6)|o:return 1
+  if not t&0x88 and B[t]==((2 if d in W else 6)|o):return 1
  for d in A:
   t=s+d
   while not t&0x88 and not B[t]:t+=d
@@ -83,7 +83,7 @@ def ev():
    s+=v if c==0 else -v
  s+=25*((nb[0]>1)-(nb[1]>1))
  return s if S==0 else -s
-def order(l):return sorted(l,key=lambda m:V[B[m>>7&127]&7]*10)
+def order(l):return sorted(l,key=lambda m:-V[B[m>>7&127]&7])
 def search(d,a,b):
  global ND;ND+=1
  if ND>LIM:raise Ab
@@ -110,10 +110,10 @@ def parse(fen):
   if ch=='/':sq+=8
   elif ch.isdigit():sq+=int(ch)
   else:
-   p='PNBRQK'.index(ch.upper())+1+(8 if ch.islower() else 0);B[sq]=p
+   p='PNBRQK'.index(ch.upper())+1+8*ch.islower();B[sq]=p
    if p&7==6:K[p>>3]=sq
    sq+=1
- S=0 if ps[1]=='w' else 1;C=0
+ S=1-(ps[1]=='w');C=0
  for c,b in zip('KQkq',(1,2,4,8)):C|=b*(c in ps[2])
  E=-1 if ps[3]=='-' else sqo(ps[3])
 def fromu(u):
@@ -121,23 +121,26 @@ def fromu(u):
  if len(u)==5:m|='nbrq'.index(u[4])+2<<14
  return m
 def best():
- global ND;ND=0;l=[]
+ global ND;l=[]
  for m in gen():
   v=B[:],S,C,E,K[:];make(m)
   if not at(K[S^1],S):l.append(m)
   rs(v)
  bm=l[0];d=1
  while d<64:
+  ND=0;nm=bm
   try:
-   a=-100000;nm=bm
+   a=-100000
    for m in order(l):
     v=B[:],S,C,E,K[:];make(m);s=-search(d-1,-100000,-a);rs(v)
     if s>a:a=s;nm=m
    bm=nm
-  except Ab:break
+  except Ab:
+   if d==1:bm=nm
+   break
   d+=1
  return bm
-post=lambda p,b:json.load(urlopen(Request(os.environ['MAKEFUN_ENV_URL']+p,data=json.dumps(b).encode())))
+post=lambda p,b:json.load(urlopen(Request(os.getenv('MAKEFUN_ENV_URL')+p,data=json.dumps(b).encode())))
 def play():
  while 1:
   g=post('/game',{})
@@ -146,7 +149,7 @@ def play():
    parse(g['start_fen'])
    for u in g['moves']:make(fromu(u))
    m=best();f=m&127;t=m>>7&127;pr=m>>14&7
-   u=chr(97+f&7)+str(8-f//16)+chr(97+t&7)+str(8-t//16)+('nbrq'[pr-2] if pr else '')
+   u=chr(97+(f&7))+str(8-f//16)+chr(97+(t&7))+str(8-t//16)+('nbrq'[pr-2] if pr else '')
    if u not in g['legal_moves']:u=g['legal_moves'][0]
    g=post('/move',{'game':g['game'],'move':u})
 if __name__=='__main__':play()
