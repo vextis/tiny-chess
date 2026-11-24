@@ -1,25 +1,24 @@
-import json,os
-from urllib.request import*
-V=[0,100,320,330,500,900,0];PR=[0,50,19,12,10,0,5,0]
+import json,os,urllib.request as U
+V=[0,100,320,330,500,900,0];PR=[0,50,19,12,10,0,5,0];NK=[(int(x,16)-10)*5 for x in"024426ab4bcd4bde"]
 B=[0]*128;S=0;C=0;E=-1;K=[0,0]
 N=[-16,16,-1,1];D=[-15,15,-17,17];A=N+D;W=[-33,-31,-18,-14,14,18,31,33]
 Q=[i for i in range(128)if not i&0x88];CR={112:2,119:1,0:8,7:4};DS={2:W,3:D,4:N,5:A,6:A}
-ND=0;LIM=50000;Ab=Exception;sqo=lambda x:(8-int(x[1]))*16+ord(x[0])-97
+ND=0;LIM=50000;Ab=Exception;sqo=lambda x:(8-int(x[1]))*16+ord(x[0])-97;sv=lambda:(B[:],S,C,E,K[:])
 def at(s,y):
  o=y<<3
  for d in (15,17):
-  t=s+d if y==0 else s-d
+  t=s+d-2*d*y
   if not t&0x88 and B[t]==1|o:return 1
  for d in W+A:
   t=s+d
-  if not t&0x88 and B[t]==((2 if d in W else 6)|o):return 1
+  if not t&0x88 and B[t]==(6-4*(d in W))|o:return 1
  for d in A:
   t=s+d
   while not t&0x88 and not B[t]:t+=d
-  if not t&0x88 and B[t]>>3==y and B[t]&7 in((4,5) if d in N else (3,5)):return 1
+  if not t&0x88 and B[t]>>3==y and B[t]&7 in(3+(d in N),5):return 1
  return 0
 def gen():
- ms=[];a=ms.append;d=-16 if S==0 else 16
+ ms=[];a=ms.append;d=32*S-16
  def pm(s,u):
   for pr in (5,4,3,2):a(s|u<<7|pr<<14)
  for s in Q:
@@ -32,7 +31,7 @@ def gen():
     if u>>4 in (0,7):pm(s,u)
     else:
      a(s|u<<7)
-     if s>>4==(6 if S==0 else 1) and not B[s+2*d]:a(s|(s+2*d)<<7)
+     if s>>4==6-5*S and not B[s+2*d]:a(s|(s+2*d)<<7)
    for dd in (d-1,d+1):
     u=s+dd
     if u&0x88:continue
@@ -50,23 +49,23 @@ def gen():
      a(s|u<<7)
      if t in (2,6):break
      u+=dd
- kf=116 if S==0 else 4
- for bit,sg in ((1,1),(2,-1)) if S==0 else ((4,1),(8,-1)):
+ kf=116-112*S
+ for bit,sg in((1,1),(2,-1)):
   e1,e2=kf+sg,kf+2*sg
-  if C&bit and not (B[e1] or B[e2] or sg<0 and B[kf+3*sg]) and not any(at(x,1-S) for x in (kf,e1,e2)):a(kf|e2<<7)
+  if C&bit<<2*S and not(B[e1]or B[e2]or sg<0 and B[kf+3*sg])and not any(at(x,1-S)for x in(kf,e1,e2)):a(kf|e2<<7)
  return ms
 def make(m):
  global S,C,E
  f=m&127;t=m>>7&127;pr=m>>14&7;p=B[f];ty=p&7
  if ty==1 and t==E and not B[t]:
-  cs=t+16 if S==0 else t-16;B[cs]=0
+  cs=t+16-32*S;B[cs]=0
  E=(f+t)//2 if ty==1 and abs(t-f)==32 else -1
  B[t]=pr|S<<3 if pr else p;B[f]=0
  if ty==6:
   K[S]=t
   if abs(t-f)==2:
    rf,rt=(t+1,t-1) if t>f else (t-2,t+1);B[rt]=B[rf];B[rf]=0
-  C&=~(3 if S==0 else 12)
+  C&=~(3+9*S)
  for x in (f,t):C&=~CR.get(x,0)
  S^=1
 def rs(v):
@@ -78,11 +77,15 @@ def ev():
   p=B[sq]
   if p:
    ty=p&7;c=p>>3;v=V[ty]
-   if ty==1:v+=PR[sq>>4 if c==0 else 7-sq>>4]
+   if ty in(1,2,6):
+    a=sq>>4^(7*c);e=min(sq&7,7-sq&7)
+    if ty==1:v+=PR[a]+3*e-4
+    if ty==2:v+=NK[min(a,7-a)*4+e]
+    if ty==6:v+=(a-4)*7-14
    if ty==3:nb[c]+=1
-   s+=v if c==0 else -v
+   s+=v-2*v*c
  s+=25*((nb[0]>1)-(nb[1]>1))
- return s if S==0 else -s
+ return s-2*s*S
 def order(l):return sorted(l,key=lambda m:-V[B[m>>7&127]&7])
 def search(d,a,b):
  global ND;ND+=1
@@ -96,7 +99,7 @@ def search(d,a,b):
  for m in order(gen()):
   t=m>>7&127
   if q and not (B[t] or m>>14):continue
-  v=B[:],S,C,E,K[:];make(m)
+  v=sv();make(m)
   if at(K[S^1],S):rs(v);continue
   s=-search(d-1,-b,-a);rs(v)
   if s>best:best=s
@@ -123,7 +126,7 @@ def fromu(u):
 def best():
  global ND;l=[]
  for m in gen():
-  v=B[:],S,C,E,K[:];make(m)
+  v=sv();make(m)
   if not at(K[S^1],S):l.append(m)
   rs(v)
  bm=l[0];d=1
@@ -132,7 +135,7 @@ def best():
   try:
    a=-100000
    for m in order(l):
-    v=B[:],S,C,E,K[:];make(m);s=-search(d-1,-100000,-a);rs(v)
+    v=sv();make(m);s=-search(d-1,-100000,-a);rs(v)
     if s>a:a=s;nm=m
    bm=nm
   except Ab:
@@ -140,7 +143,7 @@ def best():
    break
   d+=1
  return bm
-post=lambda p,b:json.load(urlopen(Request(os.getenv('MAKEFUN_ENV_URL')+p,data=json.dumps(b).encode())))
+post=lambda p,b:json.load(U.urlopen(U.Request(os.getenv('MAKEFUN_ENV_URL')+p,data=json.dumps(b).encode())))
 def play():
  while 1:
   g=post('/game',{})
